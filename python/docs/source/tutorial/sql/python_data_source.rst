@@ -231,6 +231,8 @@ This is a dummy streaming data reader that generates 2 rows in every microbatch.
     class FakeStreamReader(DataSourceStreamReader):
         def __init__(self, schema, options):
             self.current = 0
+            self.schema = schema
+            self.options = options
 
         def initialOffset(self) -> dict:
             """
@@ -262,12 +264,18 @@ This is a dummy streaming data reader that generates 2 rows in every microbatch.
 
         def read(self, partition) -> Iterator[Tuple]:
             """
-            Takes a partition as an input and read an iterator of tuples from the
-            data source.
+            Takes a partition as an input and read an iterator of tuples from the data source.
             """
             start, end = partition.start, partition.end
+            from faker import Faker
+            fake = Faker()
+            # Note: every value in this `self.options` dictionary is a string.
             for i in range(start, end):
-                yield (i, str(i))
+                row = []
+                for field in self.schema.fields:
+                    value = getattr(fake, field.name)()
+                    row.append(value)
+                yield tuple(row)
 
 Alternative: Implement a Simple Streaming Reader
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -350,7 +358,7 @@ This is a streaming data writer that write the metadata information of each micr
     from pyspark.sql import Row
     from pyspark.sql.datasource import DataSourceStreamWriter, WriterCommitMessage
 
-
+    @dataclass
     class SimpleCommitMessage(WriterCommitMessage):
        partition_id: int
        count: int
